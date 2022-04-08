@@ -1,4 +1,3 @@
-from functools import partial
 from typing import List
 
 import jax
@@ -8,7 +7,7 @@ import jax.numpy as np
 from jax.numpy import einsum
 
 import equinox as eqx
-from equinox import nn as eqx_nn, Module, static_field
+from equinox import Module, static_field
 from einops import rearrange, repeat
 
 # bias-less layernorm
