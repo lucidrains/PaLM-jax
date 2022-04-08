@@ -132,7 +132,6 @@ class Attention(Module):
 
         # attention
 
-        sim -= np.max(sim, axis = -1, keepdims = True)
         attn = nn.softmax(sim, axis = -1)
 
         # aggregate values
