@@ -1,4 +1,4 @@
-## PaLM - Jax (wip)
+## PaLM - Jax
 
 Implementation of the specific Transformer architecture from <a href="https://ai.googleblog.com/2022/04/pathways-language-model-palm-scaling-to.html">PaLM - Scaling Language Modeling with Pathways</a> - in Jax using <a href="https://github.com/patrick-kidger/equinox">Equinox</a>
 
@@ -36,6 +36,10 @@ logits = model(seq) # (1, 1024, 20000)
 
 The way the model is built doesn't require `vmap` at all. It can have any number of leading dimensions
 
+
+## Todos
+
+- [ ] bring in optax and setup a basic training on enwik8
 
 ## Citations
 
