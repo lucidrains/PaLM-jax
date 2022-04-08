@@ -1,12 +1,9 @@
 from typing import List
 
-import jax
 import numpy as onp
-from jax import random, nn
-import jax.numpy as np
+from jax import random, nn, lax, numpy as np
 from jax.numpy import einsum
 
-import equinox as eqx
 from equinox import Module, static_field
 from einops import rearrange, repeat
 
@@ -24,7 +21,7 @@ class LayerNorm(Module):
         mean = np.mean(x, axis = -1, keepdims = True)
         mean_of_squares = np.mean(np.square(x), axis = -1, keepdims = True)
         variance = mean_of_squares - np.square(mean)
-        inv = jax.lax.rsqrt(variance + self.eps)
+        inv = lax.rsqrt(variance + self.eps)
         return inv * x * self.gamma
 
 # Rotary embedding
