@@ -11,7 +11,7 @@ from einops import rearrange, repeat
 
 class LayerNorm(Module):
     gamma: np.ndarray
-    eps: float
+    eps: float = static_field()
 
     def __init__(self, dim, eps = 1e-5):
         self.gamma = np.ones((dim,))
