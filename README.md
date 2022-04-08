@@ -31,7 +31,7 @@ model = PaLM(
     key = key
 )
 
-seq = jax.random.randint(key, (1, 2, 1024,), 0, 20000)
+seq = jax.random.randint(key, (1, 1024), 0, 20000)
 
 logits = model(seq) # (1, 1024, 20000)
 ```
