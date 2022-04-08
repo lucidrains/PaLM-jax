@@ -22,7 +22,7 @@ class LayerNorm(Module):
         mean_of_squares = np.mean(np.square(x), axis = -1, keepdims = True)
         variance = mean_of_squares - np.square(mean)
         inv = lax.rsqrt(variance + self.eps)
-        return inv * x * self.gamma
+        return inv * (x - mean) * self.gamma
 
 # Rotary embedding
 
