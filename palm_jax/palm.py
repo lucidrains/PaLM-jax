@@ -101,7 +101,7 @@ class Attention(Module):
         self.scale = dim_head ** -0.5
         self.mask_value = mask_value
 
-    def __call__(self, x, pos_emb):
+    def __call__(self, x, *, pos_emb, causal_mask):
         n = x.shape[-2]
 
         x = self.norm(x)
@@ -128,8 +128,7 @@ class Attention(Module):
 
         # causal mask
 
-        mask = np.tril(np.ones((n, n)))
-        sim = np.where(mask, sim, self.mask_value)
+        sim = np.where(causal_mask, sim, self.mask_value)
 
         # attention
 
@@ -179,12 +178,14 @@ class PaLM(Module):
         self.norm = LayerNorm(dim)
 
     def __call__(self, x):
+        n = x.shape[-2]
         x = self.embedding[x]
 
-        rotary_emb = fixed_pos_embedding(self.inv_freq, x.shape[-2])
+        rotary_emb = fixed_pos_embedding(self.inv_freq, n)
+        causal_mask = np.tril(np.ones((n, n)))
 
         for attn, ff in self.layers:
-            x = attn(x, pos_emb = rotary_emb) + x
+            x = attn(x, pos_emb = rotary_emb, causal_mask = causal_mask) + x
             x = ff(x) + x
 
         x = self.norm(x)
