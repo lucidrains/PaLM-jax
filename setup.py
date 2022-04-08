@@ -16,10 +16,11 @@ setup(
     'attention mechanism'
   ],
   install_requires=[
-    'einops>=0.4',
+    'einops==0.4',
     'equinox>=0.4',
     'jax>=0.3.4',
-    'jaxlib>=0.1'
+    'jaxlib>=0.1',
+    'numpy'
   ],
   classifiers=[
     'Development Status :: 4 - Beta',

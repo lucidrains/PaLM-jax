@@ -6,6 +6,38 @@ May as well start doing more Jax work, given Facebook (Meta's) uncertain future
 
 <a href="https://github.com/lucidrains/PaLM-pytorch">Pytorch version</a>
 
+## Install
+
+```bash
+$ pip install palm-jax
+```
+
+## Usage
+
+```python
+import jax
+from palm_jax import PaLM
+
+key = jax.random.PRNGKey(0)
+
+model = PaLM(
+    num_tokens = 20000,
+    dim = 512,
+    depth = 12,
+    heads = 8,
+    dim_head = 64,
+    key = key
+)
+
+seq = jax.random.randint(key, (1, 1024,), 0, 20000)
+
+logits = model(seq) # (1, 1024, 20000)
+```
+
+## Todo
+
+- [ ] fix jit error
+
 ## Citations
 
 ```bibtex
