@@ -1,5 +1,5 @@
 from functools import partial
-from typing import List, Union
+from typing import List
 
 import jax
 import numpy as onp
@@ -8,7 +8,7 @@ import jax.numpy as np
 from jax.numpy import einsum
 
 import equinox as eqx
-from equinox import nn as eqx_nn, Module
+from equinox import nn as eqx_nn, Module, static_field
 from einops import rearrange, repeat
 
 # bias-less layernorm
@@ -81,9 +81,9 @@ class Attention(Module):
     wv: np.ndarray
     wo: np.ndarray
 
-    heads: int
-    scale: float
-    mask_value: float
+    heads: int = static_field()
+    scale: float = static_field()
+    mask_value: float = static_field()
 
     def __init__(
         self,
@@ -116,7 +116,7 @@ class Attention(Module):
 
         # split out heads
 
-        q = rearrange(q, 'b n (h d) -> b h n d', h = self.heads)
+        q = rearrange(q, '... n (h d) -> ... h n d', h = self.heads)
 
         # scale
 

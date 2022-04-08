@@ -29,14 +29,13 @@ model = PaLM(
     key = key
 )
 
-seq = jax.random.randint(key, (1, 1024,), 0, 20000)
+seq = jax.random.randint(key, (1, 2, 1024,), 0, 20000)
 
 logits = model(seq) # (1, 1024, 20000)
 ```
 
-## Todo
+The way the model is built doesn't require `vmap` at all. It can have any number of leading dimensions
 
-- [ ] fix jit error
 
 ## Citations
 
