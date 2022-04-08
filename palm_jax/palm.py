@@ -153,7 +153,7 @@ class Attention(Module):
 class PaLM(Module):
     embedding: np.ndarray
     norm: Module
-    layers: List[Module]
+    layers: List[List[Module]]
     inv_freq: onp.ndarray
 
     def __init__(
