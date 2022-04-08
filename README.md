@@ -14,6 +14,8 @@ $ pip install palm-jax
 
 ## Usage
 
+The way the model is built doesn't require `vmap` at all. It can have any number of leading dimensions
+
 ```python
 import jax
 from palm_jax import PaLM
@@ -34,8 +36,23 @@ seq = jax.random.randint(key, (1, 2, 1024,), 0, 20000)
 logits = model(seq) # (1, 1024, 20000)
 ```
 
-The way the model is built doesn't require `vmap` at all. It can have any number of leading dimensions
+The 540B PaLM in the paper would be
 
+
+```python
+
+model = PaLM(
+    num_tokens = 256000,
+    dim = 18432,
+    depth = 118,
+    heads = 48,
+    dim_head = 256,
+    key = key
+)
+
+```
+
+That's all it is. Attention (and scale) is all we need.
 
 ## Todos
 
