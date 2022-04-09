@@ -1,3 +1,5 @@
+<img src="./palm.gif" width="450px"></img>
+
 ## PaLM - Jax
 
 Implementation of the specific Transformer architecture from <a href="https://ai.googleblog.com/2022/04/pathways-language-model-palm-scaling-to.html">PaLM - Scaling Language Modeling with Pathways</a> - in Jax using <a href="https://github.com/patrick-kidger/equinox">Equinox</a>
