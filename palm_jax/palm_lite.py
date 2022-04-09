@@ -6,7 +6,7 @@ from jax import random, nn, lax, numpy as np
 from jax.numpy import einsum
 
 from equinox import Module, static_field
-from einops import rearrange, repeat
+from einops import rearrange
 
 # rmsnorm
 
