@@ -1,3 +1,4 @@
+from math import log2, floor
 from typing import List
 
 import numpy as onp
@@ -22,23 +23,25 @@ class RMSNorm(Module):
         inv_norm = lax.rsqrt(mean_of_squares + self.eps)
         return inv_norm * x * self.gamma
 
-# Rotary embedding
-# todo, replace with ALiBi positional embedding
+# AliBi
 
-def fixed_pos_embedding(inv_freq, seq):
-    sinusoid_inp = einsum('i , j -> i j', np.arange(seq), inv_freq)
-    sinusoid_inp = repeat(sinusoid_inp, '... d -> ... (d r)', r = 2)
-    return np.sin(sinusoid_inp), np.cos(sinusoid_inp)
+def get_alibi_slopes(heads):
+    def get_slopes_power_of_2(n):
+        start = (2 ** (-2 ** -(log2(n) - 3)))
+        ratio = start
+        return [start*ratio**i for i in range(n)]
 
-def rotate_every_two(x):
-    x = rearrange(x, '... (d r) -> ... d r', r = 2)
-    x1, x2 = x[..., 0], x[..., 1]
-    x = np.stack((-x2, x1), axis = -1)
-    return rearrange(x, '... d r -> ... (d r)')
+    if log2(heads).is_integer():
+        return get_slopes_power_of_2(heads)
 
-def apply_rotary_pos_emb(x, sincos):
-    sin, cos = sincos
-    return (x * cos) + (rotate_every_two(x) * sin)
+    closest_power_of_2 = 2 ** floor(log2(heads))
+    return get_slopes_power_of_2(closest_power_of_2) + get_slopes_power_of_2(2 * closest_power_of_2)[0::2][:heads-closest_power_of_2]
+
+def calc_alibi_bias(seq_len, heads):
+    slopes = get_alibi_slopes(heads)
+    slopes = rearrange(onp.array(slopes), 'h -> h 1 1')
+    bias = rearrange(onp.arange(seq_len), 'j -> 1 1 j')
+    return slopes * bias
 
 # feedforward
 # SwiGLU variant
@@ -100,7 +103,7 @@ class Attention(Module):
         self.scale = dim_head ** -0.5
         self.mask_value = mask_value
 
-    def __call__(self, x, pos_emb):
+    def __call__(self, x, pos_bias):
         n = x.shape[-2]
 
         x = self.norm(x)
@@ -117,13 +120,13 @@ class Attention(Module):
 
         q *= self.scale
 
-        # apply rotary embeddings
-
-        q, k = map(lambda t: apply_rotary_pos_emb(t, pos_emb), (q, k))
-
         # sim
 
         sim = einsum('... h i d, ... j d -> ... h i j', q, k)
+
+        # positional bias
+
+        sim = sim + pos_bias
 
         # causal mask
 
@@ -152,7 +155,7 @@ class PaLM(Module):
     embedding: np.ndarray
     norm: Module
     layers: List[List[Module]]
-    inv_freq: onp.ndarray
+    alibi_bias: onp.ndarray
 
     def __init__(
         self,
@@ -163,10 +166,11 @@ class PaLM(Module):
         depth,
         heads,
         key,
-        ff_mult = 4
+        ff_mult = 4,
+        max_seq_len = 2048
     ):
-        self.embedding = random.normal(key, (num_tokens, dim)) * 0.02
-        self.inv_freq = 1.0 / (10000 ** (np.arange(0, dim_head, 2) / dim_head))
+        self.embedding = random.normal(key, (num_tokens, dim)) * 0.02        
+        self.alibi_bias = calc_alibi_bias(max_seq_len, heads = heads)
 
         self.layers = []
         for _ in range(depth):
@@ -177,12 +181,13 @@ class PaLM(Module):
         self.norm = RMSNorm(dim)
 
     def __call__(self, x):
+        n = x.shape[-1]
         x = self.embedding[x]
 
-        rotary_emb = fixed_pos_embedding(self.inv_freq, x.shape[-2])
+        pos_bias = self.alibi_bias[..., :n]
 
         for attn, ff in self.layers:
-            x = attn(x, pos_emb = rotary_emb) + x
+            x = attn(x, pos_bias = pos_bias) + x
             x = ff(x) + x
 
         x = self.norm(x)
