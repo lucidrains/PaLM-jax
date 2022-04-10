@@ -87,7 +87,7 @@ class Attention(Module):
         dim_head,
         heads,
         key,
-        mask_value = 1e-10
+        mask_value = -1e10
     ):
         inner_dim = dim_head * heads
         self.norm = LayerNorm(dim)

@@ -6,7 +6,7 @@ from jax import random, nn, lax, numpy as np
 from jax.numpy import einsum
 
 from equinox import Module, static_field
-from einops import rearrange
+from einops import rearrange, repeat
 
 # rmsnorm
 
@@ -80,16 +80,14 @@ class Attention(Module):
     wo: np.ndarray
 
     heads: int = static_field()
-    scale: float = static_field()
-    mask_value: float = static_field()
+    scale: float = static_field()    
 
     def __init__(
         self,
         dim,
         dim_head,
         heads,
-        key,
-        mask_value = 1e-10
+        key
     ):
         inner_dim = dim_head * heads
         self.norm = RMSNorm(dim)
@@ -101,9 +99,8 @@ class Attention(Module):
 
         self.heads = heads
         self.scale = dim_head ** -0.5
-        self.mask_value = mask_value
 
-    def __call__(self, x, pos_bias, mask):
+    def __call__(self, x, attn_bias):
         n = x.shape[-2]
 
         x = self.norm(x)
@@ -126,11 +123,7 @@ class Attention(Module):
 
         # positional bias
 
-        sim = sim + pos_bias
-
-        # causal mask
-
-        sim = np.where(mask, sim, self.mask_value)
+        sim = sim + attn_bias
 
         # attention
 
@@ -154,8 +147,7 @@ class PaLM(Module):
     embedding: np.ndarray
     norm: Module
     layers: List[List[Module]]
-    alibi_bias: onp.ndarray
-    causal_mask: onp.ndarray
+    attn_bias: onp.ndarray
 
     def __init__(
         self,
@@ -167,11 +159,14 @@ class PaLM(Module):
         heads,
         key,
         ff_mult = 4,
-        max_seq_len = 2048
+        max_seq_len = 2048,
+        mask_value = -1e10
     ):
         self.embedding = random.normal(key, (num_tokens, dim)) * 0.02        
-        self.alibi_bias = calc_alibi_bias(max_seq_len, heads = heads)
-        self.causal_mask = onp.tril(onp.ones((max_seq_len, max_seq_len)))
+
+        causal_mask = onp.tril(onp.ones((max_seq_len, max_seq_len)))
+        alibi_bias = calc_alibi_bias(max_seq_len, heads = heads)
+        self.attn_bias = np.where(causal_mask, repeat(alibi_bias, 'h 1 j -> h i j', i = max_seq_len), mask_value)
 
         self.layers = []
         for _ in range(depth):
@@ -185,11 +180,10 @@ class PaLM(Module):
         n = x.shape[-1]
         x = self.embedding[x]
 
-        pos_bias = self.alibi_bias[..., :n]
-        causal_mask = self.causal_mask[:n, :n]
+        attn_bias = self.attn_bias[..., :n, :n]
 
         for attn, ff in self.layers:
-            x = attn(x, pos_bias = pos_bias, mask = causal_mask) + x
+            x = attn(x, attn_bias = attn_bias) + x
             x = ff(x) + x
 
         x = self.norm(x)
