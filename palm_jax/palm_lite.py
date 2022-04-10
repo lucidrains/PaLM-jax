@@ -103,7 +103,7 @@ class Attention(Module):
         self.scale = dim_head ** -0.5
         self.mask_value = mask_value
 
-    def __call__(self, x, pos_bias):
+    def __call__(self, x, pos_bias, mask):
         n = x.shape[-2]
 
         x = self.norm(x)
@@ -130,7 +130,6 @@ class Attention(Module):
 
         # causal mask
 
-        mask = np.tril(np.ones((n, n)))
         sim = np.where(mask, sim, self.mask_value)
 
         # attention
@@ -156,6 +155,7 @@ class PaLM(Module):
     norm: Module
     layers: List[List[Module]]
     alibi_bias: onp.ndarray
+    causal_mask: onp.ndarray
 
     def __init__(
         self,
@@ -171,6 +171,7 @@ class PaLM(Module):
     ):
         self.embedding = random.normal(key, (num_tokens, dim)) * 0.02        
         self.alibi_bias = calc_alibi_bias(max_seq_len, heads = heads)
+        self.causal_mask = onp.tril(onp.ones((max_seq_len, max_seq_len)))
 
         self.layers = []
         for _ in range(depth):
@@ -185,9 +186,10 @@ class PaLM(Module):
         x = self.embedding[x]
 
         pos_bias = self.alibi_bias[..., :n]
+        causal_mask = self.causal_mask[:n, :n]
 
         for attn, ff in self.layers:
-            x = attn(x, pos_bias = pos_bias) + x
+            x = attn(x, pos_bias = pos_bias, mask = causal_mask) + x
             x = ff(x) + x
 
         x = self.norm(x)
