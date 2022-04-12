@@ -12,16 +12,18 @@ from einops import rearrange, repeat
 
 class RMSNorm(Module):
     gamma: np.ndarray
+    scale: float = static_field()
     eps: float = static_field()
 
     def __init__(self, dim, eps = 1e-5):
         self.gamma = np.ones((dim,))
         self.eps = eps
+        self.scale = dim ** 0.5
 
     def __call__(self, x):
-        mean_of_squares = np.mean(np.square(x), axis = -1, keepdims = True)
-        inv_norm = lax.rsqrt(mean_of_squares + self.eps)
-        return inv_norm * x * self.gamma
+        sum_of_squares = np.sum(np.square(x), axis = -1, keepdims = True)
+        inv_norm = lax.rsqrt(sum_of_squares + self.eps)
+        return inv_norm * x * self.gamma * self.scale
 
 # AliBi
 
