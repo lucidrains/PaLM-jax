@@ -1,7 +1,7 @@
 from typing import List
 
 import numpy as onp
-from jax import random, nn, lax, numpy as np
+from jax import random, nn, lax, jit, numpy as np
 from jax.numpy import einsum
 
 from equinox import Module, static_field
@@ -176,6 +176,7 @@ class PaLM(Module):
 
         self.norm = LayerNorm(dim)
 
+    @jit
     def __call__(self, x):
         n = x.shape[-2]
         x = self.embedding[x]

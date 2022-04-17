@@ -2,7 +2,7 @@ from math import log2, floor
 from typing import List
 
 import numpy as onp
-from jax import random, nn, lax, numpy as np
+from jax import random, jit, nn, lax, numpy as np
 from jax.numpy import einsum
 
 from equinox import Module, static_field
@@ -178,6 +178,7 @@ class PaLM(Module):
 
         self.norm = RMSNorm(dim)
 
+    @jit
     def __call__(self, x):
         n = x.shape[-1]
         x = self.embedding[x]
