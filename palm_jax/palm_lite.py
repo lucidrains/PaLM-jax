@@ -186,8 +186,7 @@ class PaLM(Module):
         attn_bias = self.attn_bias[..., :n, :n]
 
         for attn, ff in self.layers:
-            x = attn(x, attn_bias = attn_bias) + x
-            x = ff(x) + x
+            x = attn(x, attn_bias = attn_bias) + ff(x) + x
 
         x = self.norm(x)
         return x @ self.embedding.transpose()

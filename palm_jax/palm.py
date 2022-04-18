@@ -178,15 +178,14 @@ class PaLM(Module):
 
     @jit
     def __call__(self, x):
-        n = x.shape[-2]
+        n = x.shape[-1]
         x = self.embedding[x]
 
         rotary_emb = fixed_pos_embedding(self.inv_freq, n)
         causal_mask = np.tril(np.ones((n, n)))
 
         for attn, ff in self.layers:
-            x = attn(x, pos_emb = rotary_emb, causal_mask = causal_mask) + x
-            x = ff(x) + x
+            x = attn(x, pos_emb = rotary_emb, causal_mask = causal_mask) + ff(x) + x
 
         x = self.norm(x)
         return x @ self.embedding.transpose()
