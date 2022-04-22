@@ -45,12 +45,6 @@ def calc_alibi_bias(seq_len, heads):
     bias = rearrange(onp.arange(seq_len), 'j -> 1 1 j')
     return slopes * bias
 
-# feedforward
-# SwiGLU variant
-
-def swish(x):
-    return x * nn.sigmoid(x)
-
 # attention - multi-query, one-headed key / values variant
 # feedforward - Shazeer's SwiGLU variant
 
@@ -128,7 +122,7 @@ class ParallelTransformerBlock(Module):
 
         attn_out = out @ self.attn_wo
 
-        ff_out = (ff * swish(ff_gate)) @ self.ff_wo
+        ff_out = (ff * nn.swish(ff_gate)) @ self.ff_wo
 
         # combine heads out
 
