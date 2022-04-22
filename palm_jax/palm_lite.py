@@ -1,5 +1,5 @@
 from math import log2, floor
-from typing import List
+from typing import List, Tuple
 
 import numpy as onp
 from jax import random, jit, nn, lax, numpy as np
@@ -51,65 +51,50 @@ def calc_alibi_bias(seq_len, heads):
 def swish(x):
     return x * nn.sigmoid(x)
 
-class FeedForward(Module):
+# attention - multi-query, one-headed key / values variant
+# feedforward - Shazeer's SwiGLU variant
+
+class ParallelTransformerBlock(Module):
     norm: Module
     wi: np.ndarray
-    wg: np.ndarray
-    wo: np.ndarray
-
-    def __init__(self, dim, key, mult = 4):
-        inner_dim = int(mult * dim)
-        self.norm = RMSNorm(dim = dim)
-
-        self.wi = random.normal(key, (dim, inner_dim))
-        self.wg = random.normal(key, (dim, inner_dim))
-        self.wo = random.normal(key, (inner_dim, dim))
-
-    def __call__(self, x):
-        x = self.norm(x)
-        x, gate = (x @ self.wi), (x @ self.wg)
-        x *= swish(gate)
-        return x @ self.wo
-
-# attention
-# multi-query, one-headed key / values variant
-
-class Attention(Module):
-    norm: Module
-    wq: np.ndarray
-    wk: np.ndarray
-    wv: np.ndarray
-    wo: np.ndarray
+    attn_wo: np.ndarray
+    ff_wo: np.ndarray
 
     heads: int = static_field()
-    scale: float = static_field()    
+    fused_dims: Tuple[int] = static_field()
+    scale: float = static_field()
+    mask_value: float = static_field()
 
     def __init__(
         self,
         dim,
         dim_head,
         heads,
-        key
+        key,
+        ff_mult = 4,
+        mask_value = -1e10
     ):
-        inner_dim = dim_head * heads
+        attn_inner_dim = dim_head * heads
+        ff_inner_dim = dim * ff_mult
         self.norm = RMSNorm(dim)
+        self.fused_dims = (attn_inner_dim, dim_head, dim_head, ff_inner_dim, ff_inner_dim)
 
-        self.wq = random.normal(key, (dim, inner_dim))
-        self.wk = random.normal(key, (dim, dim_head))
-        self.wv = random.normal(key, (dim, dim_head))
-        self.wo = random.normal(key, (inner_dim, dim))
+        self.wi = random.normal(key, (dim, sum(self.fused_dims)))
+        self.attn_wo = random.normal(key, (attn_inner_dim, dim))
+        self.ff_wo = random.normal(key, (ff_inner_dim, dim))
 
         self.heads = heads
         self.scale = dim_head ** -0.5
+        self.mask_value = mask_value
 
-    def __call__(self, x, attn_bias):
-        n = x.shape[-2]
+    def __call__(self, x, *, attn_bias):
+        n, split_indices = x.shape[-2], onp.cumsum(self.fused_dims[:-1])
 
         x = self.norm(x)
 
-        q = x @ self.wq
-        k = x @ self.wk
-        v = x @ self.wv
+        # fused attention and feedforward projections
+
+        q, k, v, ff, ff_gate = np.split(x @ self.wi, split_indices, axis = -1)
 
         # split out heads
 
@@ -123,7 +108,7 @@ class Attention(Module):
 
         sim = einsum('... h i d, ... j d -> ... h i j', q, k)
 
-        # positional bias
+        # causal mask
 
         sim = sim + attn_bias
 
@@ -139,9 +124,15 @@ class Attention(Module):
 
         out = rearrange(out, '... h n d -> ... n (h d)')
 
+        # feedforward out
+
+        attn_out = out @ self.attn_wo
+
+        ff_out = (ff * swish(ff_gate)) @ self.ff_wo
+
         # combine heads out
 
-        return out @ self.wo
+        return attn_out + ff_out
 
 # main class
 
@@ -170,12 +161,7 @@ class PaLM(Module):
         alibi_bias = calc_alibi_bias(max_seq_len, heads = heads)
         self.attn_bias = np.where(causal_mask, repeat(alibi_bias, 'h 1 j -> h i j', i = max_seq_len), mask_value)
 
-        self.layers = []
-        for _ in range(depth):
-            attn = Attention(dim = dim, dim_head = dim_head, heads = heads, key = key)
-            ff = FeedForward(dim = dim, mult = ff_mult, key = key)
-            self.layers.append([attn, ff])
-
+        self.layers = [ParallelTransformerBlock(dim = dim, dim_head = dim_head, heads = heads, key = key, ff_mult = ff_mult) for _ in range(depth)]
         self.norm = RMSNorm(dim)
 
     @jit
@@ -185,8 +171,8 @@ class PaLM(Module):
 
         attn_bias = self.attn_bias[..., :n, :n]
 
-        for attn, ff in self.layers:
-            x = attn(x, attn_bias = attn_bias) + ff(x) + x
+        for block in self.layers:
+            x = block(x, attn_bias = attn_bias) + x
 
         x = self.norm(x)
         return x @ self.embedding.transpose()
