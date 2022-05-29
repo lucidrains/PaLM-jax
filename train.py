@@ -1,3 +1,4 @@
+import os
 from random import randrange
 import tqdm
 import gzip
@@ -8,11 +9,16 @@ from torch.utils.data import DataLoader, Dataset
 import jax
 import jax.numpy as jnp
 from jax import nn
+
+import equinox as eqx
 from optax import adam, clip_by_global_norm, chain, apply_every
 
 from palm_jax import PaLM
-import equinox as eqx
-from utils import sample
+from palm_jax.utils import sample
+
+# env
+
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 
 # constants
 
@@ -40,7 +46,7 @@ def decode_tokens(tokens):
 
 # prepare enwik8 data
 
-with gzip.open('../datasets/enwik8.gz') as file:
+with gzip.open('./data/enwik8.gz') as file:
     X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
     data_train, data_val = np.split(X, [int(90e6)])
 
@@ -69,18 +75,9 @@ key = jax.random.PRNGKey(0)
 model = PaLM(
     num_tokens = 256,
     dim = 512,
-    depth=12,
-    heads=8,
-    dim_head=64,
-    key = key
-)
-
-eval_model = PaLM(
-    num_tokens = 256,
-    dim = 512,
-    depth=12,
-    heads=8,
-    dim_head=64,
+    depth = 8,
+    heads = 8,
+    dim_head = 64,
     key = key
 )
 
@@ -95,7 +92,7 @@ def cross_entropy(logits, targets, axis = -1):
 @eqx.filter_value_and_grad
 def loss_fn(model, data):
     inp, labels = data[:, :-1], data[:, 1:]
-    logits = jax.vmap(model)(inp)
+    logits = model(inp)
     return cross_entropy(logits, labels, axis = -1)
 
 # optimizer
@@ -109,6 +106,7 @@ optim = chain(
 optim_state = optim.init(model)
 
 # train step
+
 @eqx.filter_jit(kwargs=dict(data=True))
 def train_step(model, data, optim_state):
     loss, grads = loss_fn(model, data)
@@ -121,14 +119,16 @@ def train_step(model, data, optim_state):
 for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     data = next(train_loader).numpy()
     model, optim_state, loss = train_step(model, data, optim_state)
+
     if i % GRADIENT_ACCUMULATE_EVERY == 0:
         print(f'loss: {loss.item()}')
+
     if i % SAMPLE_EVERY == 0:
         valid_data = next(val_loader).numpy()
         prime = valid_data[0][:100]
         prime_str = decode_tokens(prime)
         print(prime_str, "\n", "*" * 40)
 
-        sampled = sample(key, eval_model, model, prime, SEQ_LEN, top_k = 25)
+        sampled = sample(key, model, prime, SEQ_LEN, top_k = 25)
         sampled_str = decode_tokens(sampled[100:])
         print(sampled_str)

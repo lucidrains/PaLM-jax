@@ -58,7 +58,7 @@ That's all it is. Attention (and scale) is all we need.
 
 ## Todos
 
-- [ ] bring in optax and setup a basic training on enwik8
+- [x] bring in optax and setup a basic training on enwik8 (thanks to <a href="https://github.com/conceptofmind">Enrico</a>)
 - [x] ALiBi positional encoding https://arxiv.org/abs/2108.12409 for PaLM-lite
 
 ## Citations
