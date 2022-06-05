@@ -45,7 +45,7 @@ def calc_alibi_bias(seq_len, heads):
     bias = rearrange(onp.arange(seq_len), 'j -> 1 1 j')
     return slopes * bias
 
-# attention - multi-query, one-headed key / values variant
+# attention - multi-query, one-headed key / values variant with shared key / values
 # feedforward - Shazeer's SwiGLU variant
 
 class ParallelTransformerBlock(Module):
@@ -71,7 +71,7 @@ class ParallelTransformerBlock(Module):
         attn_inner_dim = dim_head * heads
         ff_inner_dim = dim * ff_mult
         self.norm = RMSNorm(dim)
-        self.fused_dims = (attn_inner_dim, dim_head, dim_head, ff_inner_dim, ff_inner_dim)
+        self.fused_dims = (attn_inner_dim, dim_head, ff_inner_dim, ff_inner_dim)
 
         self.wi = random.normal(key, (dim, sum(self.fused_dims)))
         self.attn_wo = random.normal(key, (attn_inner_dim, dim))
@@ -88,7 +88,7 @@ class ParallelTransformerBlock(Module):
 
         # fused attention and feedforward projections
 
-        q, k, v, ff, ff_gate = np.split(x @ self.wi, split_indices, axis = -1)
+        q, kv, ff, ff_gate = np.split(x @ self.wi, split_indices, axis = -1)
 
         # split out heads
 
@@ -100,7 +100,7 @@ class ParallelTransformerBlock(Module):
 
         # sim
 
-        sim = einsum('... h i d, ... j d -> ... h i j', q, k)
+        sim = einsum('... h i d, ... j d -> ... h i j', q, kv)
 
         # causal mask
 
@@ -112,7 +112,7 @@ class ParallelTransformerBlock(Module):
 
         # aggregate values
 
-        out = einsum('... h i j, ... j d -> ... h i d', attn, v)
+        out = einsum('... h i j, ... j d -> ... h i d', attn, kv)
 
         # merge heads
 
