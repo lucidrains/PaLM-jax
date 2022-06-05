@@ -134,7 +134,7 @@ class PaLM(Module):
     embedding: np.ndarray
     norm: Module
     layers: List[List[Module]]
-    attn_bias: onp.ndarray
+    attn_bias: onp.ndarray = static_field()
 
     def __init__(
         self,
@@ -149,7 +149,7 @@ class PaLM(Module):
         max_seq_len = 2048,
         mask_value = -1e10
     ):
-        self.embedding = random.normal(key, (num_tokens, dim)) * 0.02        
+        self.embedding = random.normal(key, (num_tokens, dim)) * 0.02
 
         causal_mask = onp.tril(onp.ones((max_seq_len, max_seq_len)))
         alibi_bias = calc_alibi_bias(max_seq_len, heads = heads)

@@ -134,7 +134,7 @@ class PaLM(Module):
     embedding: np.ndarray
     norm: Module
     layers: List[List[Module]]
-    inv_freq: onp.ndarray
+    inv_freq: onp.ndarray = static_field()
 
     def __init__(
         self,
