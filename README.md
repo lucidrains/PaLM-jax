@@ -8,6 +8,9 @@ May as well start doing more Jax work, given Facebook (Meta's) uncertain future
 
 <a href="https://github.com/lucidrains/PaLM-pytorch">Pytorch version</a>
 
+<a href="https://github.com/conceptofmind/PaLM-flax">Flax version</a> from <a href="https://github.com/conceptofmind">Enrico</a>!
+
+
 ## Install
 
 ```bash
